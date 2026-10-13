@@ -9,7 +9,7 @@ Apple Silicon Mac, macOS 15.4 or newer, administrator account, official macFUSE 
 1. Open `build/dist/NTFSBridge.app`, then **Set Up…**. Move the app to Applications if you want to keep it.
 2. Use **Open macFUSE downloads** to obtain the official installer. Install it using macOS Installer, authorizing its installation yourself. The app does not automatically install macFUSE.
 3. If prompted, enable macFUSE's **FSKit file system extension** in System Settings → General → Login Items & Extensions → File System Extensions. Labels can differ between macOS versions. Use the current [official instructions](https://github.com/macfuse/macfuse/wiki/Getting-Started). FSKit does not require Recovery Mode, Reduced Security, or disabling SIP. This app always passes `backend=fskit`; it never falls back to the kernel backend.
-4. In NTFSBridge, choose **Open Helper Installer…**. Review and authorize `NTFSBridgeHelper.pkg` in macOS Installer. It installs the helper, NTFS executables, libfuse, licenses and source archives under `/Library/Application Support/NTFSBridge`. It installs no LaunchDaemon, privileged service, fstab rule or system mount replacement.
+4. In Still, choose **Open Helper Installer…**. Review and authorize `NTFSBridgeHelper.pkg` in macOS Installer. It installs the helper, NTFS executables, libfuse, licenses and source archives under `/Library/Application Support/NTFSBridge`. It installs no LaunchDaemon, privileged service, fstab rule or system mount replacement.
 5. Click **Done**. Reopen or refresh NTFSBridge if needed. Installation detection means files are present; actual mount success is checked separately.
 
 The delivered local build is ad-hoc signed and the installer is unsigned, without Developer ID notarization. Gatekeeper may require explicit approval through Privacy & Security. Do not disable Gatekeeper or run commands stripping quarantine globally. Broad public distribution needs reviewed signing and notarization using the distributor's Apple Developer account; no credentials are assumed here.
@@ -24,7 +24,7 @@ Native exFAT, FAT32, APFS and HFS+ volumes retain their macOS drivers. The NTFS 
 
 ## A refusal after using Windows
 
-Update the helper using the bundled installer, then choose **Check NTFS…** on the read-only NTFS row. Close open files first. This temporarily unmounts the NTFS volume, checks metadata through a read-only raw-device open, and restores and verifies an Apple NTFS read-only mount. It never repairs, resets a log, deletes hibernation, invokes a write-capable probe, or enables writes. Other partitions stay mounted. Use **Copy Report** to share the check result without directory listings or private filenames.
+Update the helper to 0.1.4 using the bundled installer, then choose **Check NTFS…** on the read-only NTFS row. Close open files first. This temporarily unmounts the NTFS volume, checks metadata through a read-only raw-device open, and restores and verifies an Apple NTFS read-only mount. It never repairs, resets a log, deletes hibernation, invokes a write-capable probe, or enables writes. Other partitions stay mounted. Use **Copy Report** to share the check result without directory listings or private filenames.
 
 Hibernation-file detection and cached version-2 journal refusal are different findings; status 14 alone does not identify which happened. Connecting to Windows alone is not proof of a full shutdown, safe eject, or successful filesystem repair. A clean journal flag alone does not override NTFS-3G's cached-state refusal. Preserve a separate verified backup before repair.
 
@@ -40,3 +40,5 @@ Hibernation-file detection and cached version-2 journal refusal are different fi
 ## Updates and removal
 
 Eject all NTFSBridge-mounted drives before updating the helper. Re-run the physical test matrix after macOS or macFUSE updates. Use the official macFUSE uninstaller when no other FUSE utilities need it. To remove NTFSBridge, first eject its drives and quit the app, remove the app in Finder, then remove its own `/Library/Application Support/NTFSBridge` folder with administrator authorization. No other system files need replacement or restoration.
+
+If a report stops at `volume_open`, hibernation and journal state have not been checked. Helper 0.1.4 reports macOS errno and whether opening, locking or reading failed. An EPERM error during device access can reflect macOS privacy restrictions and must not be interpreted as a hibernation finding.

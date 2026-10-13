@@ -26,7 +26,7 @@ If `xcodebuild` reports that only Command Line Tools are selected, select a full
 5. **Duplicates → Find duplicates** checks eligible, local files of at least 1 MB with SHA-256. Select copies yourself and retain at least one per group. The kept copies are revalidated and coordinated with every move; changed or missing keepers block further moves.
 6. Every Trash action shows exact paths and rechecks them after confirmation. Folder review is cancellable with **Cancel Review** or ⌘. before anything moves. Empty Trash yourself in Finder when you are ready. Moving files into Trash alone does not reclaim disk space.
 7. Click **Enable alerts** to grant native notification permission. The default threshold is 20 decimal GB; change it in Settings. Closing the window keeps checks running; quitting the app stops them. Optional **Open at login** uses `SMAppService.mainApp` after installation. Optional menu bar indicator opens the dashboard.
-8. **Connected drives** opens external volumes in Finder, safely ejects a whole physical drive after confirmation, and offers **Check NTFS** or **Enable Write Access**. NTFS actions require the bundled helper 0.1.3 update and official macFUSE 5.4 or later. Use **Update NTFS Helper / Set Up NTFS** to open Installer and authorize it yourself.
+8. **Connected drives** opens external volumes in Finder, safely ejects a whole physical drive after confirmation, and offers **Check NTFS** or **Enable Write Access**. NTFS actions require the bundled helper 0.1.4 update and official macFUSE 5.4 or later. Use **Update NTFS Helper / Set Up NTFS** to open Installer and authorize it yourself.
 
 ## Permissions and safety
 
@@ -44,7 +44,7 @@ Cleanup is restricted to user-owned items inside your home folder. Standard home
 xcodebuild -project Still.xcodeproj -scheme Still -destination 'platform=macOS,arch=arm64' -derivedDataPath .build/xcode test CODE_SIGN_IDENTITY=-
 ```
 
-57 tests cover storage inspection, cancellation, permissions, duplicate content and keeper preservation, suggestions, warning hysteresis, treemap proportions, Trash safety, physical-volume eligibility, process-signal handling, NTFS diagnostic stages, and native read-only fallback. Native Trash tests use only their own disposable fixtures. The NTFS component's ten disposable-image scenarios are documented in its integration report.
+60 tests cover storage inspection, cancellation, permissions, duplicate content and keeper preservation, suggestions, warning hysteresis, treemap proportions, Trash safety, physical-volume eligibility, process-signal handling, NTFS diagnostic stages, and native read-only fallback. Native Trash tests use only their own disposable fixtures. The NTFS component's thirteen disposable-image scenarios are documented in its integration report.
 
 ## Limits
 
@@ -59,3 +59,16 @@ xcodebuild -project Still.xcodeproj -scheme Still -destination 'platform=macOS,a
 - The app does not empty Trash, delete snapshots, uninstall apps, clean unknown caches, or repair NTFS filesystems.
 
 See [research and decisions](docs/RESEARCH.md), [architecture](docs/ARCHITECTURE.md), and [verification](docs/VERIFICATION.md).
+
+## NTFS helper rebuild
+
+The bundled helper 0.1.4 preserves macOS errno and the failed I/O operation. Failure to open a device is not diagnosed as hibernation. Its checker opens read-only and also refuses all library write/pwrite calls.
+
+```sh
+./scripts/build-ntfs-driver.sh
+python3 scripts/ntfs-image-tests.py
+./scripts/package-ntfs-helper.sh
+./scripts/build.sh
+```
+
+Driver build prerequisites are autoconf, automake, libtool, pkgconf and the libgcrypt configure macro. They are developer tools only. Builds use checksum-pinned upstream sources; no helper installation occurs during these commands. macFUSE itself is installed separately from its official source.

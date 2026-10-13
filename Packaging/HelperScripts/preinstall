@@ -1,0 +1,17 @@
+#!/bin/bash
+set -euo pipefail
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
+# Reject an unsafe existing installation instead of following a redirected path.
+for component in /Library '/Library/Application Support' '/Library/Application Support/NTFSBridge'; do
+    if test -L "$component"; then echo "Unsafe installation path: $component" >&2; exit 1; fi
+    if test -e "$component"; then
+        test "$(stat -f %u "$component")" = 0 || exit 1
+        MODE=$(stat -f %Lp "$component")
+        (( (8#$MODE & 8#022) == 0 )) || exit 1
+    fi
+done
+if /sbin/mount | /usr/bin/awk '/ on \/Volumes\/NTFSBridge-/ { found=1 } END { exit !found }'; then
+    echo 'Eject NTFSBridge volumes before installing or updating the helper.' >&2
+    exit 1
+fi
+exit 0

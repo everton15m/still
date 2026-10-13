@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 public struct NTFSSafetyReport: Codable, Equatable, Sendable {
     public let schema: Int
@@ -13,6 +14,10 @@ public struct NTFSSafetyReport: Codable, Equatable, Sendable {
     public let logMajor: Int
     public let logMinor: Int
     public let cleanupError: Int?
+    public let osError: Int?
+    public let ioOperation: String?
+    public let deviceOpened: Int?
+    public let writeBlocked: Int?
     public static func decode(_ data: Data, exitStatus: Int32) throws -> NTFSSafetyReport {
         guard let value = try? JSONDecoder().decode(Self.self, from: data), value.schema == 1,
               value.code == exitStatus,
@@ -20,11 +25,26 @@ public struct NTFSSafetyReport: Codable, Equatable, Sendable {
               (value.code == 0) == (value.stage == "passed") else {
             throw BridgeError("The installed safety checker returned an unreadable report. Update the helper package before retrying.")
         }
+        guard value.osError.map({ (0...255).contains($0) }) ?? true,
+              value.deviceOpened.map({ [0, 1].contains($0) }) ?? true,
+              value.writeBlocked.map({ [0, 1].contains($0) }) ?? true,
+              value.ioOperation.map({ ["none", "device_stat", "device_open", "device_open_or_lock", "device_lock", "device_read", "boot_read", "volume_metadata", "write_blocked"].contains($0) }) ?? true else {
+            throw BridgeError("The installed safety checker returned invalid device-access details.")
+        }
         return value
     }
     public var explanation: String {
         if code == 0 { return "The known NTFS safety checks passed. Write access has not been enabled, and this check is not a complete filesystem audit." }
         switch stage {
+        case "volume_open":
+            if (osError == Int(EPERM) || osError == Int(EACCES)),
+               ["device_stat", "device_open", "device_open_or_lock", "device_lock", "device_read", "boot_read"].contains(ioOperation ?? "") {
+                return "macOS denied read-only access while opening the NTFS volume. The hibernation and journal checks did not run. Administrator authorization does not override macOS privacy restrictions; this error can involve permissions or privacy settings. It is not evidence that Windows is hibernated."
+            }
+            if code == 14 {
+                return "The NTFS library could not open the volume for read-only inspection. The hibernation and journal checks did not run. This older report does not preserve the macOS error, so code 14 alone cannot identify the cause. Update the helper and check again."
+            }
+            return "The NTFS library could not open or load the volume for read-only inspection. The hibernation and journal checks did not run. See the device-access details below; this result does not establish a hibernation or cached-journal problem."
         case "cached_journal":
             return "NTFS-3G rejected the journal's cached-state metadata. This can also follow an unclean disconnect and does not prove that Windows is currently hibernated. Connecting to Windows alone may not clear it. Back up readable files before a Windows filesystem check, then safely eject."
         case "hiber_file" where code == 14:
@@ -42,7 +62,10 @@ public struct NTFSSafetyReport: Codable, Equatable, Sendable {
         let journal = logMajor < 0 ? "unavailable or empty" : "\(logMajor).\(logMinor)"
         let clean = logClean < 0 ? "not checked" : logClean == 1 ? "yes" : "no"
         let hiber = hiberCode < 0 ? "not checked" : hiberCode == 0 ? "clear" : "refused (\(hiberCode))"
-        return "NTFSBridge read-only diagnostic\nExit code: \(code)\nCheck: \(stage)\nNTFS version: \(version)\nVolume flags: \(flags)\nHibernation check: \(hiber)\nJournal version: \(journal)\nJournal clean: \(clean)\nMetadata cleanup error: \((cleanupError ?? 0) == 0 ? "no" : "yes")"
+        let systemError = osError.map { $0 == 0 ? "none" : "\($0) (\(String(cString: strerror(Int32($0)))))" } ?? "not recorded by this helper"
+        let opened = deviceOpened.map { $0 == 1 ? "completed" : "failed" } ?? "not recorded"
+        let blocked = writeBlocked.map { $0 == 1 ? "yes; refused" : "no" } ?? "not recorded"
+        return "NTFSBridge read-only diagnostic\nExit code: \(code)\nCheck: \(stage)\nmacOS errno: \(systemError)\nI/O operation: \(ioOperation ?? "not recorded")\nRead-only device open/lock: \(opened)\nWrite attempted: \(blocked)\nNTFS version: \(version)\nVolume flags: \(flags)\nHibernation check: \(hiber)\nJournal version: \(journal)\nJournal clean: \(clean)\nMetadata cleanup error: \((cleanupError ?? 0) == 0 ? "no" : "yes")"
     }
 }
 

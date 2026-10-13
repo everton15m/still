@@ -2,6 +2,30 @@ import XCTest
 @testable import NTFSBridgeCore
 
 final class DiagnosticTests: XCTestCase {
+    func testVolumeOpenEPERMCannotBeDiagnosedAsHibernation() throws {
+        let json = """
+        {"schema":1,"code":14,"stage":"volume_open","volumeFlags":-1,"ntfsMajor":-1,"ntfsMinor":-1,"hiberCode":-1,"logValid":-1,"logClean":-1,"logMajor":-1,"logMinor":-1,"osError":1,"ioOperation":"device_open","deviceOpened":0,"writeBlocked":0}
+        """
+        let value = try NTFSSafetyReport.decode(Data(json.utf8), exitStatus: 14)
+        XCTAssertTrue(value.explanation.contains("macOS denied read-only access"))
+        XCTAssertTrue(value.explanation.contains("checks did not run"))
+        XCTAssertTrue(value.details.contains("1 (Operation not permitted)"))
+        XCTAssertTrue(value.details.contains("I/O operation: device_open"))
+        XCTAssertTrue(value.details.contains("Write attempted: no"))
+    }
+    func testOldVolumeOpenReportDoesNotClaimHibernation() throws {
+        let value = try report(code: 14, stage: "volume_open")
+        XCTAssertTrue(value.explanation.contains("code 14 alone cannot identify"))
+        XCTAssertTrue(value.details.contains("not recorded by this helper"))
+    }
+    func testRejectsUntrustedDeviceOperationText() throws {
+        let data = try JSONEncoder().encode(report(code: 14, stage: "volume_open"))
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        json["ioOperation"] = "/private/user-file.txt"
+        XCTAssertThrowsError(try NTFSSafetyReport.decode(JSONSerialization.data(withJSONObject: json), exitStatus: 14))
+        json["ioOperation"] = "device_open"; json["osError"] = -1
+        XCTAssertThrowsError(try NTFSSafetyReport.decode(JSONSerialization.data(withJSONObject: json), exitStatus: 14))
+    }
     private func report(code: Int32 = 0, stage: String = "passed") throws -> NTFSSafetyReport {
         let json = "{\"schema\":1,\"code\":\(code),\"stage\":\"\(stage)\",\"volumeFlags\":0,\"ntfsMajor\":3,\"ntfsMinor\":1,\"hiberCode\":0,\"logValid\":1,\"logClean\":1,\"logMajor\":2,\"logMinor\":0}"
         return try NTFSSafetyReport.decode(Data(json.utf8), exitStatus: code)

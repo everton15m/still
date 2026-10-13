@@ -39,7 +39,7 @@ public enum DriverLayout {
     public static let checker = root + "/Driver/bin/ntfsbridge-check"
     public static let probe = root + "/Driver/bin/ntfs-3g.probe"
     public static var diagnosticsInstalled: Bool {
-        FileManager.default.contents(atPath: root + "/Version").flatMap { String(data: $0, encoding: .utf8) }?.trimmingCharacters(in: .whitespacesAndNewlines) == "0.1.3"
+        FileManager.default.contents(atPath: root + "/Version").flatMap { String(data: $0, encoding: .utf8) }?.trimmingCharacters(in: .whitespacesAndNewlines) == "0.1.4"
     }
     public static let fuse = "/Library/Filesystems/macfuse.fs"
     public static func supportsFUSEVersion(_ version: String) -> Bool {
