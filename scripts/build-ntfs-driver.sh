@@ -59,6 +59,7 @@ mkdir -p "$TASK_ROOT/build/test-tools"
 cp ntfsprogs/mkntfs ntfsprogs/ntfsinfo ntfsprogs/ntfscp ntfsprogs/ntfscat "$TASK_ROOT/build/test-tools/"
 "$CC" -std=gnu11 -DHAVE_CONFIG_H -I. -Iinclude/ntfs-3g "$TASK_ROOT/Driver/ntfsbridge-check.c" libntfs-3g/.libs/libntfs-3g.a -framework CoreFoundation -o "$OUT/bin/ntfsbridge-check"
 "$CC" -std=gnu11 -DHAVE_CONFIG_H -I. -Iinclude/ntfs-3g "$TASK_ROOT/Tests/Fixtures/set-dirty.c" libntfs-3g/.libs/libntfs-3g.a -framework CoreFoundation -o "$TASK_ROOT/build/test-tools/set-dirty"
+"$CC" -std=gnu11 -DHAVE_CONFIG_H -I. -Iinclude/ntfs-3g "$TASK_ROOT/Tests/Fixtures/set-flags.c" libntfs-3g/.libs/libntfs-3g.a -framework CoreFoundation -o "$TASK_ROOT/build/test-tools/set-flags"
 "$CC" -std=gnu11 -DHAVE_CONFIG_H -I. -Iinclude/ntfs-3g "$TASK_ROOT/Tests/Fixtures/make-journal.c" libntfs-3g/.libs/libntfs-3g.a -framework CoreFoundation -o "$TASK_ROOT/build/test-tools/make-journal"
 for KIND in 1 2 3; do
     "$CC" -std=gnu11 -DHAVE_CONFIG_H -DNTFSBRIDGE_TEST_IO_KIND="$KIND" -I. -Iinclude/ntfs-3g "$TASK_ROOT/Driver/ntfsbridge-check.c" "$TASK_ROOT/Tests/Fixtures/io-error.c" libntfs-3g/.libs/libntfs-3g.a -framework CoreFoundation -o "$TASK_ROOT/build/test-tools/io-error-$KIND"

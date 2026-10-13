@@ -44,8 +44,17 @@ with tempfile.TemporaryDirectory(prefix='ntfsbridge-images-') as tmp:
         assert report['logMajor']==version and report['logMinor']==(1 if version==1 else 0), report
         assert report['logValid']==1 and report['logClean']==clean_log, report
         assert report['stage']==('cached_journal' if version==2 else 'passed' if clean_log else 'journal_state'), report
+        assert report['journalCode']==expected, report
         assert digest(journal)==before, 'read-only journal report changed image'
         print(f'PASS journal {version}.{1 if version==1 else 0}, clean={clean_log}: code {expected}, distinct report, unchanged read-only image')
+        flagged=tmp/f'flagged-journal-{version}-{clean_log}.img'; shutil.copyfile(journal,flagged); flagged.chmod(0o600)
+        run([tools/'set-flags',flagged,'0x0080']); flagged.chmod(0o444); before=digest(flagged)
+        report=json.loads(run([bin/'ntfsbridge-check','--report',flagged],15))
+        assert report['stage']=='volume_flags' and report['volumeFlags']==0x0080, report
+        assert report['hiberCode']==0 and report['journalCode']==expected and report['writeBlocked']==0, report
+        assert report['logMajor']==version and report['logClean']==clean_log, report
+        assert digest(flagged)==before
+        print(f'PASS flag 0x0080 plus journal {version}: both read-only checks ran, journal code {expected}, write refusal retained, unchanged image')
     dirty=tmp/'dirty.img'; shutil.copyfile(clean,dirty)
     run([tools/'set-dirty',dirty]); before=digest(dirty)
     dirty_report=json.loads(run([bin/'ntfsbridge-check','--report',dirty],15))
@@ -59,6 +68,18 @@ with tempfile.TemporaryDirectory(prefix='ntfsbridge-images-') as tmp:
     assert hiber_report['stage']=='hiber_file' and hiber_report['hiberCode']==14
     assert digest(hibernated)==before, 'hibernated image was changed'
     print('PASS synthetic hibernation refused without changes')
+    extended=tmp/'flagged-hibernated.img'; shutil.copyfile(hibernated,extended)
+    run([tools/'set-flags',extended,'0x0080']); before=digest(extended)
+    report=json.loads(run([bin/'ntfsbridge-check','--report',extended],15))
+    assert report['stage']=='volume_flags' and report['hiberCode']==14 and report['journalCode']==0 and report['writeBlocked']==0, report
+    assert digest(extended)==before
+    print('PASS flag 0x0080 plus hibernation: both checks reported independently, write refusal retained, unchanged image')
+    other=tmp/'other-flags.img'; shutil.copyfile(clean,other)
+    run([tools/'set-flags',other,'0x0081']); before=digest(other)
+    report=json.loads(run([bin/'ntfsbridge-check','--report',other],15))
+    assert report['hiberCode']==-1 and report['journalCode']==-1 and report['writeBlocked']==0, report
+    assert digest(other)==before
+    print('PASS other nonzero flags retain the original early refusal without additional reads or writes')
     corrupt=tmp/'corrupt.img'; shutil.copyfile(clean,corrupt)
     with corrupt.open('r+b') as file:
         boot=file.read(512)

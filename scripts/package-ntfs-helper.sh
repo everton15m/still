@@ -11,7 +11,7 @@ TASK_PRODUCTS="$(swift build -c release --show-bin-path)"
 rm -rf "$TASK_STAGE"
 mkdir -p "$TASK_SUPPORT/Driver" "$TASK_SUPPORT/Locks" Still/Resources
 cp "$TASK_PRODUCTS/NTFSBridgeHelper" "$TASK_SUPPORT/"
-printf '0.1.4\n' > "$TASK_SUPPORT/Version"
+printf '0.1.5\n' > "$TASK_SUPPORT/Version"
 for TASK_FOLDER in bin lib Source Licenses; do
     mkdir -p "$TASK_SUPPORT/Driver/$TASK_FOLDER"
     cp -R "build/driver/$TASK_FOLDER/." "$TASK_SUPPORT/Driver/$TASK_FOLDER/"
@@ -25,5 +25,5 @@ codesign --force --sign - "$TASK_SUPPORT/NTFSBridgeHelper"
 for TASK_FILE in "$TASK_SUPPORT/Driver/bin/"* "$TASK_SUPPORT/Driver/lib/"*; do
     codesign --force --sign - "$TASK_FILE"
 done
-COPYFILE_DISABLE=1 pkgbuild --root "$TASK_STAGE" --ownership recommended --identifier org.ntfsbridge.helper --version 0.1.4 --scripts Packaging/HelperScripts --install-location / Still/Resources/NTFSBridgeHelper.pkg
+COPYFILE_DISABLE=1 pkgbuild --root "$TASK_STAGE" --ownership recommended --identifier org.ntfsbridge.helper --version 0.1.5 --scripts Packaging/HelperScripts --install-location / Still/Resources/NTFSBridgeHelper.pkg
 shasum -a 256 Still/Resources/NTFSBridgeHelper.pkg

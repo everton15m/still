@@ -18,6 +18,7 @@ public struct NTFSSafetyReport: Codable, Equatable, Sendable {
     public let ioOperation: String?
     public let deviceOpened: Int?
     public let writeBlocked: Int?
+    public let journalCode: Int32?
     public static func decode(_ data: Data, exitStatus: Int32) throws -> NTFSSafetyReport {
         guard let value = try? JSONDecoder().decode(Self.self, from: data), value.schema == 1,
               value.code == exitStatus,
@@ -28,6 +29,8 @@ public struct NTFSSafetyReport: Codable, Equatable, Sendable {
         guard value.osError.map({ (0...255).contains($0) }) ?? true,
               value.deviceOpened.map({ [0, 1].contains($0) }) ?? true,
               value.writeBlocked.map({ [0, 1].contains($0) }) ?? true,
+              value.journalCode.map({ [-1, 0, 13, 14, 15].contains($0) }) ?? true,
+              value.code != 0 || value.writeBlocked != 1,
               value.ioOperation.map({ ["none", "device_stat", "device_open", "device_open_or_lock", "device_lock", "device_read", "boot_read", "volume_metadata", "write_blocked"].contains($0) }) ?? true else {
             throw BridgeError("The installed safety checker returned invalid device-access details.")
         }
@@ -51,17 +54,32 @@ public struct NTFSSafetyReport: Codable, Equatable, Sendable {
             return "The NTFS hibernation-file check detected a saved or incomplete Windows state. Resume the Windows session and fully shut down before reconnecting."
         case "volume_flags":
             if volumeFlags >= 0 && volumeFlags & 0x0001 != 0 {
-                return "The NTFS dirty bit is set. Back up readable files before checking the filesystem in Windows. The hibernation and journal checks have not run."
+                return "The NTFS dirty bit is set. Back up readable files before checking the filesystem in Windows. " + followUpSummary
             }
             if volumeFlags >= 0 && volumeFlags & ~0xC03F != 0 {
                 let unknown = String(format: "0x%04X", volumeFlags & ~0xC03F)
-                return "The checker does not interpret volume flags \(unknown). Its conservative policy refuses write access when any volume flag is set. The dirty bit is not set; this result does not establish corruption or hibernation. The hibernation and journal checks have not run."
+                return "The checker does not interpret volume flags \(unknown). Its conservative policy refuses write access when any volume flag is set. The dirty bit is not set; the flag alone does not establish corruption or hibernation.\n\n" + followUpSummary
             }
-            return "NTFS has nonzero volume flags that this checker's conservative policy refuses. The dirty bit is not set. The hibernation and journal checks have not run; no repair has been performed."
+            return "NTFS has nonzero volume flags that this checker's conservative policy refuses. The dirty bit is not set. " + followUpSummary
         case "journal_state", "journal_open":
             return "The NTFS journal could not be verified as clean and supported. Back up readable files before repair."
         default: return ProbeFailure.message(code)
         }
+    }
+    private var followUpSummary: String {
+        guard hiberCode >= 0 || (journalCode ?? -1) >= 0 else {
+            return "The hibernation and journal checks have not run; no repair has been performed."
+        }
+        let hiber = hiberCode < 0 ? "Hibernation-file check: not run." : hiberCode == 0 ? "Hibernation-file check: clear." : "Hibernation-file check: refused (code \(hiberCode))."
+        let journal: String
+        switch journalCode {
+        case 0: journal = "Journal: the known validity and clean-state checks passed. This is not a complete filesystem audit."
+        case 14: journal = "Journal: NTFS-3G's version-2.0 cached-state guard refused it, even if its clean bit is set. This does not prove that Windows is hibernated."
+        case 15: journal = "Journal: it could not be verified as valid and clean."
+        case 13: journal = "Journal: the required metadata could not be opened or read."
+        default: journal = "Journal: not checked."
+        }
+        return hiber + "\n" + journal + "\nWrite access remains blocked; no repair has been performed."
     }
     public var details: String {
         let flags = volumeFlags < 0 ? "unavailable" : String(format: "0x%04X", volumeFlags)
@@ -73,7 +91,9 @@ public struct NTFSSafetyReport: Codable, Equatable, Sendable {
         let opened = deviceOpened.map { $0 == 1 ? "completed" : "failed" } ?? "not recorded"
         let blocked = writeBlocked.map { $0 == 1 ? "yes; refused" : "no" } ?? "not recorded"
         let dirty = volumeFlags < 0 ? "not checked" : volumeFlags & 1 != 0 ? "set" : "not set"
-        return "NTFSBridge read-only diagnostic\nExit code: \(code)\nCheck: \(stage)\nmacOS errno: \(systemError)\nI/O operation: \(ioOperation ?? "not recorded")\nRead-only device open/lock: \(opened)\nWrite attempted: \(blocked)\nNTFS version: \(version)\nVolume flags: \(flags)\nNTFS dirty bit: \(dirty)\nHibernation check: \(hiber)\nJournal version: \(journal)\nJournal clean: \(clean)\nMetadata cleanup error: \((cleanupError ?? 0) == 0 ? "no" : "yes")"
+        let journalResult = journalCode.map { $0 < 0 ? "not checked" : $0 == 0 ? "passed" : "refused (\($0))" } ?? "not recorded by this helper"
+        let valid = logValid < 0 ? "not checked" : logValid == 1 ? "yes" : "no"
+        return "NTFSBridge read-only diagnostic\nExit code: \(code)\nCheck: \(stage)\nmacOS errno: \(systemError)\nI/O operation: \(ioOperation ?? "not recorded")\nRead-only device open/lock: \(opened)\nWrite attempted: \(blocked)\nNTFS version: \(version)\nVolume flags: \(flags)\nNTFS dirty bit: \(dirty)\nHibernation check: \(hiber)\nJournal check: \(journalResult)\nJournal valid: \(valid)\nJournal version: \(journal)\nJournal clean: \(clean)\nMetadata cleanup error: \((cleanupError ?? 0) == 0 ? "no" : "yes")"
     }
 }
 

@@ -2,11 +2,47 @@ import XCTest
 @testable import NTFSBridgeCore
 
 final class DiagnosticTests: XCTestCase {
+    func testExtendedClearChecksStillRefuseFlag0080() throws {
+        let value = try extendedReport()
+        XCTAssertEqual(value.code, 15)
+        XCTAssertEqual(value.stage, "volume_flags")
+        XCTAssertTrue(value.explanation.contains("Hibernation-file check: clear"))
+        XCTAssertTrue(value.explanation.contains("clean-state checks passed"))
+        XCTAssertTrue(value.explanation.contains("Write access remains blocked"))
+        XCTAssertTrue(value.details.contains("Journal check: passed"))
+    }
+    func testExtendedCleanVersion2JournalIsStillRefused() throws {
+        let value = try extendedReport(journal: 14, major: 2)
+        XCTAssertEqual(value.code, 15) // First refusal is retained.
+        XCTAssertTrue(value.explanation.contains("version-2.0 cached-state guard refused"))
+        XCTAssertTrue(value.details.contains("Journal check: refused (14)"))
+        XCTAssertTrue(value.details.contains("Journal clean: yes"))
+    }
+    func testExtendedHibernationAndJournalRefusalsAreBothDisplayed() throws {
+        let value = try extendedReport(hiber: 14, journal: 14, major: 2)
+        XCTAssertTrue(value.explanation.contains("Hibernation-file check: refused (code 14)"))
+        XCTAssertTrue(value.explanation.contains("cached-state guard refused"))
+        XCTAssertEqual(value.stage, "volume_flags")
+    }
+    func testInvalidJournalCodeAndBlockedWriteCannotPass() throws {
+        let data = try JSONEncoder().encode(report())
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        json["journalCode"] = 99
+        XCTAssertThrowsError(try NTFSSafetyReport.decode(JSONSerialization.data(withJSONObject: json), exitStatus: 0))
+        json["journalCode"] = 0; json["writeBlocked"] = 1
+        XCTAssertThrowsError(try NTFSSafetyReport.decode(JSONSerialization.data(withJSONObject: json), exitStatus: 0))
+    }
+    private func extendedReport(hiber: Int = 0, journal: Int = 0, major: Int = 1) throws -> NTFSSafetyReport {
+        let json = """
+        {"schema":1,"code":15,"stage":"volume_flags","volumeFlags":128,"ntfsMajor":3,"ntfsMinor":1,"hiberCode":\(hiber),"logValid":1,"logClean":1,"logMajor":\(major),"logMinor":\(major == 1 ? 1 : 0),"journalCode":\(journal),"osError":0,"ioOperation":"none","deviceOpened":1,"writeBlocked":0}
+        """
+        return try NTFSSafetyReport.decode(Data(json.utf8), exitStatus: 15)
+    }
     func testUnknownVolumeFlagCannotBeCalledDirtyOrCorrupt() throws {
         let value = try flaggedReport(0x0080)
         XCTAssertTrue(value.explanation.contains("does not interpret volume flags 0x0080"))
         XCTAssertTrue(value.explanation.contains("dirty bit is not set"))
-        XCTAssertTrue(value.explanation.contains("does not establish corruption or hibernation"))
+        XCTAssertTrue(value.explanation.contains("flag alone does not establish corruption or hibernation"))
         XCTAssertTrue(value.details.contains("NTFS dirty bit: not set"))
         XCTAssertEqual(value.code, 15) // No change to the refusal policy.
     }

@@ -18,6 +18,7 @@
 
 static struct ntfs_device_operations original_io;
 static int os_error, device_opened, write_blocked;
+static int journal_code = -1;
 static const char *io_operation = "none";
 
 /* Record only fixed operation names and errno. Never format upstream logs:
@@ -81,9 +82,9 @@ static int finish(int report, int code, const char *stage, int flags,
         printf("{\"schema\":1,\"code\":%d,\"stage\":\"%s\",\"volumeFlags\":%d,"
                "\"ntfsMajor\":%d,\"ntfsMinor\":%d,\"hiberCode\":%d,"
                "\"logValid\":%d,\"logClean\":%d,\"logMajor\":%d,\"logMinor\":%d,\"cleanupError\":%d,"
-               "\"osError\":%d,\"ioOperation\":\"%s\",\"deviceOpened\":%d,\"writeBlocked\":%d}\n",
+               "\"osError\":%d,\"ioOperation\":\"%s\",\"deviceOpened\":%d,\"writeBlocked\":%d,\"journalCode\":%d}\n",
                code, stage, flags, major, minor, hiber, valid, clean, log_major, log_minor, cleanup_error,
-               os_error, io_operation, device_opened, write_blocked);
+               os_error, io_operation, device_opened, write_blocked, journal_code);
     return code;
 }
 
@@ -111,28 +112,34 @@ int main(int argc, char **argv)
     const char *stage = "passed";
     /* Preserve the existing conservative policy; reporting never bypasses it. */
     if (volume->flags != 0) { result = 15; stage = "volume_flags"; }
-    if (!result) {
+    /* Only this observed flag receives extra read-only diagnostics. It remains
+     * a write refusal, and other nonzero flag combinations still stop here. */
+    const int inspect_after_flags = flags == 0x0080;
+    if (!result || inspect_after_flags) {
         hiber = ntfs_volume_check_hiberfile(volume, 0) < 0 ? ntfs_volume_error(errno) : 0;
-        if (hiber) { result = hiber; stage = "hiber_file"; }
+        if (hiber && !result) { result = hiber; stage = "hiber_file"; }
     }
-    if (!result) {
+    if (!result || inspect_after_flags) {
         ntfs_inode *inode = ntfs_inode_open(volume, FILE_LogFile);
         ntfs_attr *attribute = inode ? ntfs_attr_open(inode, AT_DATA, AT_UNNAMED, 0) : NULL;
         RESTART_PAGE_HEADER *restart = NULL;
-        if (!attribute) { result = 13; stage = "journal_open"; }
+        const char *journal_stage = "passed";
+        journal_code = 0;
+        if (!attribute) { journal_code = 13; journal_stage = "journal_open"; }
         else {
             valid = ntfs_check_logfile(attribute, &restart) ? 1 : 0;
             clean = valid ? (ntfs_is_logfile_clean(attribute, restart) ? 1 : 0) : -1;
-            if (!valid || clean != 1) { result = 15; stage = "journal_state"; }
+            if (!valid || clean != 1) { journal_code = 15; journal_stage = "journal_state"; }
             if (restart) {
                 log_major = le16_to_cpu(restart->major_ver);
                 log_minor = le16_to_cpu(restart->minor_ver);
                 /* Upstream also refuses v2.0 even when the clean bit is set. */
-                if (log_major == 2 && log_minor == 0) { result = 14; stage = "cached_journal"; }
+                if (log_major == 2 && log_minor == 0) { journal_code = 14; journal_stage = "cached_journal"; }
             }
             free(restart);
             ntfs_attr_close(attribute);
         }
+        if (journal_code && !result) { result = journal_code; stage = journal_stage; }
         if (inode && ntfs_inode_close(inode) < 0) {
             cleanup_error = 1;
             if (!result) { result = 13; stage = "metadata_close"; }
@@ -142,5 +149,7 @@ int main(int argc, char **argv)
         cleanup_error = 1;
         if (!result) { result = 13; stage = "volume_close"; }
     }
+    /* A future library change must never turn a blocked write into a pass. */
+    if (write_blocked && !result) { result = 13; stage = "metadata_close"; }
     return finish(report, result, stage, flags, major, minor, hiber, valid, clean, log_major, log_minor, cleanup_error);
 }

@@ -42,3 +42,7 @@ Still 1.2.1 stops interpreting an early `volume_open` status 14 as evidence of h
 ## Read-only physical-drive check and flag explanation
 
 After the user approved Full Disk Access for the installed helper, device opening/locking succeeded without a macOS error. The physical NTFS partition reported version 3.1 and flags 0x0080, with no dirty bit, no write attempted, and verified native read-only restoration. The checker stopped at its conservative nonzero-flags gate before hibernation/journal checks. Still 1.2.2 distinguishes an unrecognized flag from a dirty volume without altering the write-refusal policy. 62 Swift tests and the Release build pass. Still 1.2.2 was installed and launched at /Applications/Still.app; the authorized 0.1.4 helper binary was not replaced. No repair or write mount was performed.
+
+## Extended read-only checks prepared
+
+Still 1.2.3 and helper 0.1.5 now continue the hibernation-file and journal diagnostics for exactly 0x0080, while retaining code 15 / volume_flags as the primary write refusal. Independent journalCode preserves the cached-v2.0 refusal even when clean. 66 Swift tests and 19 disposable-image checks pass, with unchanged hashes and no attempted writes in the checker. Release builds and installer payload hash/signature verification pass. Installer is awaiting macOS administrator authorization; the fresh physical-drive report remains pending.

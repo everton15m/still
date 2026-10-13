@@ -81,7 +81,7 @@ final class DrivesModel: ObservableObject {
     func check(_ volume: Volume) {
         guard busyDevice == nil else { return }
         guard DriverLayout.diagnosticsInstalled else {
-            notice = Notice(title: "Helper update required", message: "The read-only diagnostic needs helper 0.1.4. Use Still’s Connected drives → Set Up NTFS → Open Helper Installer to install the bundled update. macOS asks for administrator approval.")
+            notice = Notice(title: "Helper update required", message: "The read-only diagnostic needs helper 0.1.5. Use Still’s Connected drives → Set Up NTFS → Open Helper Installer to install the bundled update. macOS asks for administrator approval.")
             return
         }
         busyDevice = volume.device
