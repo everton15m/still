@@ -44,7 +44,7 @@ Cleanup is restricted to user-owned items inside your home folder. Standard home
 xcodebuild -project Still.xcodeproj -scheme Still -destination 'platform=macOS,arch=arm64' -derivedDataPath .build/xcode test CODE_SIGN_IDENTITY=-
 ```
 
-60 tests cover storage inspection, cancellation, permissions, duplicate content and keeper preservation, suggestions, warning hysteresis, treemap proportions, Trash safety, physical-volume eligibility, process-signal handling, NTFS diagnostic stages, and native read-only fallback. Native Trash tests use only their own disposable fixtures. The NTFS component's thirteen disposable-image scenarios are documented in its integration report.
+62 tests cover storage inspection, cancellation, permissions, duplicate content and keeper preservation, suggestions, warning hysteresis, treemap proportions, Trash safety, physical-volume eligibility, process-signal handling, NTFS diagnostic stages, and native read-only fallback. Native Trash tests use only their own disposable fixtures. The NTFS component's thirteen disposable-image scenarios are documented in its integration report.
 
 ## Limits
 

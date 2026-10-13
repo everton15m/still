@@ -2,6 +2,26 @@ import XCTest
 @testable import NTFSBridgeCore
 
 final class DiagnosticTests: XCTestCase {
+    func testUnknownVolumeFlagCannotBeCalledDirtyOrCorrupt() throws {
+        let value = try flaggedReport(0x0080)
+        XCTAssertTrue(value.explanation.contains("does not interpret volume flags 0x0080"))
+        XCTAssertTrue(value.explanation.contains("dirty bit is not set"))
+        XCTAssertTrue(value.explanation.contains("does not establish corruption or hibernation"))
+        XCTAssertTrue(value.details.contains("NTFS dirty bit: not set"))
+        XCTAssertEqual(value.code, 15) // No change to the refusal policy.
+    }
+    func testDirtyFlagIsReportedEvenAlongsideUnknownFlags() throws {
+        let value = try flaggedReport(0x0081)
+        XCTAssertTrue(value.explanation.contains("dirty bit is set"))
+        XCTAssertTrue(value.details.contains("NTFS dirty bit: set"))
+        XCTAssertEqual(value.code, 15)
+    }
+    private func flaggedReport(_ flags: Int) throws -> NTFSSafetyReport {
+        let json = """
+        {"schema":1,"code":15,"stage":"volume_flags","volumeFlags":\(flags),"ntfsMajor":3,"ntfsMinor":1,"hiberCode":-1,"logValid":-1,"logClean":-1,"logMajor":-1,"logMinor":-1,"osError":0,"ioOperation":"none","deviceOpened":1,"writeBlocked":0}
+        """
+        return try NTFSSafetyReport.decode(Data(json.utf8), exitStatus: 15)
+    }
     func testVolumeOpenEPERMCannotBeDiagnosedAsHibernation() throws {
         let json = """
         {"schema":1,"code":14,"stage":"volume_open","volumeFlags":-1,"ntfsMajor":-1,"ntfsMinor":-1,"hiberCode":-1,"logValid":-1,"logClean":-1,"logMajor":-1,"logMinor":-1,"osError":1,"ioOperation":"device_open","deviceOpened":0,"writeBlocked":0}

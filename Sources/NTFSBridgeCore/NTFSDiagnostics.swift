@@ -50,7 +50,14 @@ public struct NTFSSafetyReport: Codable, Equatable, Sendable {
         case "hiber_file" where code == 14:
             return "The NTFS hibernation-file check detected a saved or incomplete Windows state. Resume the Windows session and fully shut down before reconnecting."
         case "volume_flags":
-            return "NTFS has dirty or maintenance flags set. Back up readable files before checking the filesystem in Windows."
+            if volumeFlags >= 0 && volumeFlags & 0x0001 != 0 {
+                return "The NTFS dirty bit is set. Back up readable files before checking the filesystem in Windows. The hibernation and journal checks have not run."
+            }
+            if volumeFlags >= 0 && volumeFlags & ~0xC03F != 0 {
+                let unknown = String(format: "0x%04X", volumeFlags & ~0xC03F)
+                return "The checker does not interpret volume flags \(unknown). Its conservative policy refuses write access when any volume flag is set. The dirty bit is not set; this result does not establish corruption or hibernation. The hibernation and journal checks have not run."
+            }
+            return "NTFS has nonzero volume flags that this checker's conservative policy refuses. The dirty bit is not set. The hibernation and journal checks have not run; no repair has been performed."
         case "journal_state", "journal_open":
             return "The NTFS journal could not be verified as clean and supported. Back up readable files before repair."
         default: return ProbeFailure.message(code)
@@ -65,7 +72,8 @@ public struct NTFSSafetyReport: Codable, Equatable, Sendable {
         let systemError = osError.map { $0 == 0 ? "none" : "\($0) (\(String(cString: strerror(Int32($0)))))" } ?? "not recorded by this helper"
         let opened = deviceOpened.map { $0 == 1 ? "completed" : "failed" } ?? "not recorded"
         let blocked = writeBlocked.map { $0 == 1 ? "yes; refused" : "no" } ?? "not recorded"
-        return "NTFSBridge read-only diagnostic\nExit code: \(code)\nCheck: \(stage)\nmacOS errno: \(systemError)\nI/O operation: \(ioOperation ?? "not recorded")\nRead-only device open/lock: \(opened)\nWrite attempted: \(blocked)\nNTFS version: \(version)\nVolume flags: \(flags)\nHibernation check: \(hiber)\nJournal version: \(journal)\nJournal clean: \(clean)\nMetadata cleanup error: \((cleanupError ?? 0) == 0 ? "no" : "yes")"
+        let dirty = volumeFlags < 0 ? "not checked" : volumeFlags & 1 != 0 ? "set" : "not set"
+        return "NTFSBridge read-only diagnostic\nExit code: \(code)\nCheck: \(stage)\nmacOS errno: \(systemError)\nI/O operation: \(ioOperation ?? "not recorded")\nRead-only device open/lock: \(opened)\nWrite attempted: \(blocked)\nNTFS version: \(version)\nVolume flags: \(flags)\nNTFS dirty bit: \(dirty)\nHibernation check: \(hiber)\nJournal version: \(journal)\nJournal clean: \(clean)\nMetadata cleanup error: \((cleanupError ?? 0) == 0 ? "no" : "yes")"
     }
 }
 

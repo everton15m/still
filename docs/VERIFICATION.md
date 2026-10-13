@@ -38,3 +38,7 @@ After manual unlock, the combined 1.2.0 release was installed at `/Applications/
 ## 13 October 2026 diagnostic correction
 
 Still 1.2.1 stops interpreting an early `volume_open` status 14 as evidence of hibernation. Helper 0.1.4 preserves the macOS errno and failed I/O operation, with an additional barrier against all checker write/pwrite calls. 60 Swift tests and 13 disposable-image checks pass; the Release build and installer payload audit pass. The corrected app was copied to `/Applications/Still.app` after quitting the prior version, with deep/strict signature verification. Helper installation still requires the macOS authorization prompt, and the physical drive is currently disconnected. See [diagnostic interpretation and limits](ntfs/DIAGNOSTICS.md).
+
+## Read-only physical-drive check and flag explanation
+
+After the user approved Full Disk Access for the installed helper, device opening/locking succeeded without a macOS error. The physical NTFS partition reported version 3.1 and flags 0x0080, with no dirty bit, no write attempted, and verified native read-only restoration. The checker stopped at its conservative nonzero-flags gate before hibernation/journal checks. Still 1.2.2 distinguishes an unrecognized flag from a dirty volume without altering the write-refusal policy. 62 Swift tests and the Release build pass. Still 1.2.2 was installed and launched at /Applications/Still.app; the authorized 0.1.4 helper binary was not replaced. No repair or write mount was performed.
