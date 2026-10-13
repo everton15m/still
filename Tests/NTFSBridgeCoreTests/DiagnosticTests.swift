@@ -1,0 +1,81 @@
+import XCTest
+@testable import NTFSBridgeCore
+
+final class DiagnosticTests: XCTestCase {
+    private func report(code: Int32 = 0, stage: String = "passed") throws -> NTFSSafetyReport {
+        let json = "{\"schema\":1,\"code\":\(code),\"stage\":\"\(stage)\",\"volumeFlags\":0,\"ntfsMajor\":3,\"ntfsMinor\":1,\"hiberCode\":0,\"logValid\":1,\"logClean\":1,\"logMajor\":2,\"logMinor\":0}"
+        return try NTFSSafetyReport.decode(Data(json.utf8), exitStatus: code)
+    }
+    func testSignalFourteenCannotBecomeAHibernationVerdict() {
+        XCTAssertThrowsError(try Command.run("/bin/sh", ["-c", "kill -ALRM $$"])) { error in
+            XCTAssertTrue(error.localizedDescription.contains("signal 14"))
+            XCTAssertFalse(error.localizedDescription.contains("hibernation"))
+        }
+    }
+    func testReadOnlyFUSEMountCannotCountAsNativeRestoration() {
+        let path = "/Volumes/NTFSBridge-Test"
+        for kind in ["macfuse", "fskit", "apfs"] {
+            let record = MountRecord(source: "/dev/disk8s1", path: "/Volumes/Other", kind: kind, writable: false)
+            XCTAssertFalse(record.isNativeReadOnlyNTFS(device: "disk8s1", excluding: path))
+        }
+        XCTAssertFalse(MountRecord(source: "/dev/disk8s1", path: path, kind: "ntfs", writable: false).isNativeReadOnlyNTFS(device: "disk8s1", excluding: path))
+        XCTAssertTrue(MountRecord(source: "/dev/disk8s1", path: "/Volumes/NTFS", kind: "ntfs", writable: false).isNativeReadOnlyNTFS(device: "disk8s1", excluding: path))
+    }
+    func testCleanCachedV2JournalIsStillRefusedAndExplainedWithoutClaimingActiveHibernation() throws {
+        let value = try report(code: 14, stage: "cached_journal")
+        XCTAssertTrue(value.explanation.contains("does not prove"))
+        XCTAssertTrue(value.details.contains("Journal clean: yes"))
+        XCTAssertTrue(value.details.contains("Journal version: 2.0"))
+    }
+    func testHibernationAndJournalHaveDifferentExplanations() throws {
+        XCTAssertNotEqual(try report(code: 14, stage: "hiber_file").explanation, try report(code: 14, stage: "cached_journal").explanation)
+    }
+    func testRejectsUnstructuredOrInconsistentReports() throws {
+        XCTAssertThrowsError(try NTFSSafetyReport.decode(Data("invalid".utf8), exitStatus: 14))
+        let encoded = try JSONEncoder().encode(report(code: 14, stage: "cached_journal"))
+        XCTAssertThrowsError(try NTFSSafetyReport.decode(encoded, exitStatus: 0))
+        XCTAssertThrowsError(try report(code: 14, stage: "passed"))
+        XCTAssertThrowsError(try report(code: 0, stage: "cached_journal"))
+    }
+    func testUnsafeReadOnlyCheckNeverRunsWriteProbeOrDriver() throws {
+        let mock = DiagnosticMock(report: try report(code: 14, stage: "cached_journal"))
+        let result = try NTFSDiagnosticTransaction.check(using: mock)
+        XCTAssertEqual(result.code, 14)
+        XCTAssertEqual(mock.calls, ["validate", "unmount", "validate", "read-only-report", "restore"])
+    }
+    func testCleanReadOnlyCheckStillRestoresNativeReadOnlyAccess() throws {
+        let mock = DiagnosticMock(report: try report())
+        _ = try NTFSDiagnosticTransaction.check(using: mock)
+        XCTAssertEqual(mock.calls.last, "restore")
+        XCTAssertFalse(mock.calls.contains("mount"))
+    }
+    func testFailedDiagnosticRestoresReadOnly() throws {
+        let mock = DiagnosticMock(report: try report()); mock.failure = "read-only-report"
+        XCTAssertThrowsError(try NTFSDiagnosticTransaction.check(using: mock))
+        XCTAssertEqual(mock.calls.last, "restore")
+    }
+    func testBusyUnmountNeverReadsRawMetadataOrRestoresConflictingMount() throws {
+        let mock = DiagnosticMock(report: try report()); mock.failure = "unmount"
+        XCTAssertThrowsError(try NTFSDiagnosticTransaction.check(using: mock))
+        XCTAssertEqual(mock.calls, ["validate", "unmount"])
+    }
+    func testFallbackFailureDoesNotPresentSuccessfulReport() throws {
+        let mock = DiagnosticMock(report: try report()); mock.failure = "restore"
+        XCTAssertThrowsError(try NTFSDiagnosticTransaction.check(using: mock))
+    }
+}
+
+private final class DiagnosticMock: NTFSDiagnosticOperations {
+    let report: NTFSSafetyReport
+    var calls: [String] = []
+    var failure: String?
+    init(report: NTFSSafetyReport) { self.report = report }
+    private func step(_ name: String) throws { calls.append(name); if name == failure { throw BridgeError("Injected failure") } }
+    func validate() throws { try step("validate") }
+    func unmount() throws { try step("unmount") }
+    func readOnlyReport() throws -> NTFSSafetyReport { try step("read-only-report"); return report }
+    func restoreReadOnly() throws { try step("restore") }
+    func probe() throws -> Int32 { try step("write-probe"); return 0 }
+    func mount() throws { try step("mount") }
+    func verify() throws { try step("verify") }
+}

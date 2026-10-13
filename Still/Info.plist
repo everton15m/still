@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+    <key>CFBundleName</key><string>Still</string>
+    <key>CFBundleDisplayName</key><string>Still</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>1.2.0</string>
+    <key>CFBundleVersion</key><string>3</string>
+    <key>CFBundleIconFile</key><string>StillIcon</string>
+    <key>LSMinimumSystemVersion</key><string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>NSPrincipalClass</key><string>NSApplication</string>
+    <key>NSHumanReadableCopyright</key><string>Still contributors. MIT License.</string>
+    <key>NSDesktopFolderUsageDescription</key><string>Still inspects file sizes on your Desktop when you scan storage. Nothing is removed without review.</string>
+    <key>NSDocumentsFolderUsageDescription</key><string>Still inspects file sizes in Documents when you scan storage. Nothing is removed without review.</string>
+    <key>NSDownloadsFolderUsageDescription</key><string>Still finds large downloads that you can review and choose to move to Trash.</string>
+    <key>NSRemovableVolumesUsageDescription</key><string>Still shows your connected drives and opens them in Finder. NTFS operations only run when you explicitly request them.</string>
+    <key>NSAppleEventsUsageDescription</key><string>Still asks macOS for administrator authorization to run the installed NTFS helper when you request a drive check or write mount. Storage cleanup never uses administrator privileges.</string>
+</dict></plist>
